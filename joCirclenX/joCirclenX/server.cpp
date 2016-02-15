@@ -3,6 +3,8 @@
 #include <winsock2.h> //windows socket
 #include <Ws2tcpip.h>
 #include <vector>
+#include <string>
+#include <iostream>
 
 #pragma comment(lib,"ws2_32.lib") //Winsock Library
 
@@ -18,8 +20,35 @@ vector<int> clientsTeams(max_clients, -1);
 struct sockaddr_in server, address; //client;
 
 
-vector<int> team1tab(9, 0);
-vector<int> team2tab(9, 0);
+vector<int> team1tab(10, 0);
+vector<int> team2tab(10, 0);
+
+
+string initBuffer(const char * buffer, int team){
+
+	string str_buffer(buffer);
+
+	string new_buffer = "";
+	if (team == 1){
+		for (unsigned int i = 0; i < team1tab.size(); i++){
+			new_buffer += to_string(team1tab[i]);
+		}
+	} else if (team == 2) {
+		for (unsigned int i = 0; i < team1tab.size(); i++){
+			new_buffer += to_string(team2tab[i]);
+		}
+	} else {
+		printf("wrong team!\n");
+		return "";
+	}
+
+	new_buffer += str_buffer;
+	cout << "new_buffer: " << new_buffer << endl;
+	//const char * ret_buffer = new_buffer.c_str();
+	//cout << "ret_buffer: " << ret_buffer << endl;
+
+	return new_buffer;
+}
 
 void initServer(){
 	//Windows Socket init
@@ -48,31 +77,39 @@ void initServer(){
 }
 
 void setVote(int vote, int team){
-	if (team == 1){
-		team1tab[vote]++;
-	} else { //team == 2
-		team2tab[vote]++;
+	if (vote >= 0 && vote < 10){
+		if (team == 1){
+			team1tab[vote]++;
+		}
+		else if (team == 2) {
+			team2tab[vote]++;
+		}
+		else {
+			printf("team error!");
+		}
+	} else {
+		printf("vote error!");
 	}
 }
 
 void printVotes(){
-	for (int i = 0; i < 9; i++){
+	for (int i = 1; i < 10; i++){
 		printf("%d ", team1tab[i]);
-		if ((i - 2) % 3 == 0)
+		if (i % 3 == 0)
 			printf("\n");
 	}
 	printf("\n\n");
-	for (int i = 0; i < 9; i++){
+	for (int i = 1; i < 10; i++){
 		printf("%d ", team2tab[i]);
-		if ((i - 2) % 3 == 0)
+		if (i % 3 == 0)
 			printf("\n");
 	}
 }
 
 int main()
 {
-	int c;
-	char *message = "Witaj, gracz";
+//	int c;
+	char *message = "000000000Witaj, gracz";
 
 	initServer();
 
@@ -125,7 +162,7 @@ int main()
 				perror("send failed");
 			}
 
-			puts("Welcome message sent successfully");
+			puts("Welcome message sent successfully"); // nie chcemy wysylac wiadomosci powitalnej
 
 			//add new socket to array of sockets
 			for (i = 0; i < max_clients; i++) {
@@ -173,25 +210,46 @@ int main()
 					closesocket(s);
 					clients[i] = 0;
 					clientsTeams[i] = -1;
-				}
 
-				//Echo back the message that came in
-				else {
+
+				} else { //udalo sie odebrac msg //Echo back the message that came in
+					bool newPlayer = false;
 					//add null character, if you want to use with printf/puts or other string handling functions
 					buffer[valread] = '\0';
+					printf("tmp buf: %s\n", buffer);
 					if (clientsTeams[i] == 0){		 // gracz nie wybral druzyny
 						int team = (int)buffer[0] - (int)48;
 						//printf("(int)buffer[0] - 48 = %d \n", team);
 						if (team == 1 || team == 2){ //
 							clientsTeams[i] = team;
 							printf("clientsTeams[%d] = %d \n", i, team);
+							newPlayer = true;
 						} else {
 							printf("sizeof buffer = %d, %s \n", sizeof(buffer), buffer);
 						}
 					}
 						
 					printf("%s:%d - %s \n", inet_ntop(AF_INET, &(address.sin_addr), tmp, INET_ADDRSTRLEN), ntohs(address.sin_port), buffer);
-					send(s, buffer, valread, 0);
+					if(!newPlayer)
+						setVote((int)buffer[0] - (int)48, clientsTeams[i]);
+					newPlayer = false;
+					printVotes();
+					for (int j = 0; j < max_clients; j++){ //chce wyslac tez info o zmianie ruchu do pozostalych graczy w druzynie
+						if (clientsTeams[j] == clientsTeams[i]){
+							int team = clientsTeams[j];
+							string str = initBuffer(buffer, team);
+							cout << "str: " << str << endl;
+							const char * msg = str.c_str();
+							cout << "msg: " << msg << endl;
+							send(clients[j], msg, valread + 10, 0);
+						}
+
+					}
+					
+					//send(s, buffer, valread, 0);
+
+
+					
 				}
 			}
 		}
