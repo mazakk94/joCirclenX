@@ -4,7 +4,17 @@
 #include <Ws2tcpip.h>
 #include <vector>
 #include <string>
-#include <iostream>
+#include <iostream> // cout <<
+
+
+/*
+TODO:
+- podzial na kolejki (blokowanie tych co teraz nie graja)
+- wybór ruchu dla graczy na podstawie glosowania
+- zajmowanie pól, wysylanie wybranego pola do graczy (jakos trzeba to wyroznic)
+- zerowanie g³osowania i informowanie graczy o nastepnym glosowaniu
+- blokowanie wyboru pól które s¹ ju¿ zajête
+*/
 
 #pragma comment(lib,"ws2_32.lib") //Winsock Library
 
@@ -17,12 +27,30 @@ int max_clients = 10;
 int activity, addrlen, i, valread;
 vector<SOCKET> clients(max_clients, 0);
 vector<int> clientsTeams(max_clients, -1);
+vector<int> madeMove(max_clients, -1);
 struct sockaddr_in server, address; //client;
 
 
 vector<int> team1tab(10, 0);
 vector<int> team2tab(10, 0);
 
+int getTeamCount(int team){
+	int count = 0;
+	for (int i = 0; i < max_clients; i++)
+		if (clientsTeams[i] == team)
+			count++;
+	return count;
+}
+
+bool areAllVotes(int team){
+	int count = 0;
+	for (int i = 0; i < max_clients; i++){
+		if (clientsTeams[i] == team)
+			if (madeMove[i] != team)
+				return false;
+	}
+	return true;
+}
 
 string initBuffer(const char * buffer, int team){
 
@@ -198,6 +226,7 @@ int main()
 						closesocket(s);
 						clients[i] = 0;
 						clientsTeams[i] = -1;
+						madeMove[i] = -1;
 					} else {
 						printf("recv failed with error code : %d", error_code);
 					}
@@ -210,6 +239,7 @@ int main()
 					closesocket(s);
 					clients[i] = 0;
 					clientsTeams[i] = -1;
+					madeMove[i] = -1;
 
 
 				} else { //udalo sie odebrac msg //Echo back the message that came in
@@ -222,6 +252,7 @@ int main()
 						//printf("(int)buffer[0] - 48 = %d \n", team);
 						if (team == 1 || team == 2){ //
 							clientsTeams[i] = team;
+							madeMove[i] = 0;
 							printf("clientsTeams[%d] = %d \n", i, team);
 							newPlayer = true;
 						} else {
@@ -230,22 +261,29 @@ int main()
 					}
 						
 					printf("%s:%d - %s \n", inet_ntop(AF_INET, &(address.sin_addr), tmp, INET_ADDRSTRLEN), ntohs(address.sin_port), buffer);
-					if(!newPlayer)
+					if (!newPlayer){
 						setVote((int)buffer[0] - (int)48, clientsTeams[i]);
-					newPlayer = false;
+						madeMove[i] = clientsTeams[i]; //gracz teamu clientsTeams[i] wykonal ruch
+						if (areAllVotes(1) && areAllVotes(2)){
+							//WYBIERZ RUCHY DLA DRUZYN
+						}
+					}
+					
 					printVotes();
 					for (int j = 0; j < max_clients; j++){ //chce wyslac tez info o zmianie ruchu do pozostalych graczy w druzynie
 						if (clientsTeams[j] == clientsTeams[i]){
 							int team = clientsTeams[j];
 							string str = initBuffer(buffer, team);
+							str += "Gracz " + to_string(i) + " zaglosowal...";
 							cout << "str: " << str << endl;
 							const char * msg = str.c_str();
 							cout << "msg: " << msg << endl;
 							send(clients[j], msg, valread + 10, 0);
+							//send(clients[j], msg, valread + 10, 0);
 						}
 
 					}
-					
+					newPlayer = false;
 					//send(s, buffer, valread, 0);
 
 
