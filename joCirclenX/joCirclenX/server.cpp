@@ -6,17 +6,16 @@
 #include <string>
 #include <iostream> // cout <<
 
+#pragma comment(lib,"ws2_32.lib") //Winsock Library
 
 /*
 TODO:
-- podzial na kolejki (blokowanie tych co teraz nie graja)
+- podzial na kolejki (blokowanie tych co teraz nie graja) - 
 - wybór ruchu dla graczy na podstawie glosowania
 - zajmowanie pól, wysylanie wybranego pola do graczy (jakos trzeba to wyroznic)
 - zerowanie g³osowania i informowanie graczy o nastepnym glosowaniu
 - blokowanie wyboru pól które s¹ ju¿ zajête
 */
-
-#pragma comment(lib,"ws2_32.lib") //Winsock Library
 
 using namespace std;
 
@@ -29,18 +28,9 @@ vector<SOCKET> clients(max_clients, 0);
 vector<int> clientsTeams(max_clients, -1);
 vector<int> madeMove(max_clients, -1);
 struct sockaddr_in server, address; //client;
-
-
 vector<int> team1tab(10, 0);
 vector<int> team2tab(10, 0);
-
-int getTeamCount(int team){
-	int count = 0;
-	for (int i = 0; i < max_clients; i++)
-		if (clientsTeams[i] == team)
-			count++;
-	return count;
-}
+int turn = 1;
 
 bool areAllVotes(int team){
 	int count = 0;
@@ -52,6 +42,15 @@ bool areAllVotes(int team){
 	return true;
 }
 
+int getTeamCount(int team){
+	int count = 0;
+	for (int i = 0; i < max_clients; i++)
+		if (clientsTeams[i] == team)
+			count++;
+	return count;
+}
+
+//dajemy na poczatek wiadomosci stan gry dla gracza odpowiedniej druzyny
 string initBuffer(const char * buffer, int team){
 
 	string str_buffer(buffer);
@@ -78,6 +77,20 @@ string initBuffer(const char * buffer, int team){
 	return new_buffer;
 }
 
+bool initNewPlayer(char buffer0, int i){
+	int team = (int)buffer0 - (int)48; //(pierwszy znak w pierwszej wiadomosci to druzyna która wybral)
+	
+	if (team == 1 || team == 2){			//przypisujemy mu team
+		clientsTeams[i] = team;
+		madeMove[i] = 0;
+		printf("clientsTeams[%d] = %d \n", i, team);
+		return true;
+	}
+	else
+		return false;
+	
+}
+
 void initServer(){
 	//Windows Socket init
 	if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
@@ -102,6 +115,40 @@ void initServer(){
 	}
 
 	puts("Zbindowanie zakonczone pomyslnie");
+}
+
+bool isClientHere(int valread, char tmp[INET_ADDRSTRLEN]){
+	bool flag = true;
+	if (valread == SOCKET_ERROR) {
+		int error_code = WSAGetLastError();
+		if (error_code == WSAECONNRESET) {
+			//Somebody disconnected , get his details and print
+			printf("Host disconnected unexpectedly , ip %s , port %d \n", inet_ntop(AF_INET, &(address.sin_addr), tmp, INET_ADDRSTRLEN), ntohs(address.sin_port));
+
+			//Close the socket and mark as 0 in list for reuse
+			closesocket(s);
+			clients[i] = 0;
+			clientsTeams[i] = -1;
+			madeMove[i] = -1;
+		}
+		else {
+			printf("recv failed with error code : %d", error_code);
+		}
+		flag = false;
+	}
+
+	if (valread == 0) {
+		//Somebody disconnected , get his details and print
+		printf("Host disconnected , ip %s , port %d \n", inet_ntop(AF_INET, &(address.sin_addr), tmp, INET_ADDRSTRLEN), ntohs(address.sin_port));
+
+		//Close the socket and mark as 0 in list for reuse
+		closesocket(s);
+		clients[i] = 0;
+		clientsTeams[i] = -1;
+		madeMove[i] = -1;
+		flag = false;
+	}
+	return flag;
 }
 
 void setVote(int vote, int team){
@@ -137,7 +184,7 @@ void printVotes(){
 int main()
 {
 //	int c;
-	char *message = "000000000Witaj, gracz";
+	char *message = "000000000Witaj, graczu";
 
 	initServer();
 
@@ -190,7 +237,7 @@ int main()
 				perror("send failed");
 			}
 
-			puts("Welcome message sent successfully"); // nie chcemy wysylac wiadomosci powitalnej
+			puts("Welcome message sent successfully"); 
 
 			//add new socket to array of sockets
 			for (i = 0; i < max_clients; i++) {
@@ -203,11 +250,13 @@ int main()
 			}
 		}
 
-		//else its some IO operation on some other socket :)
+		//obsluga wszystkich graczy
 		for (i = 0; i < max_clients; i++) {
 			s = clients[i];
-			//if client presend in read sockets             
+
+			//if client present in read sockets             
 			if (FD_ISSET(s, &readfds)) {
+
 				//get details of the client
 				getpeername(s, (struct sockaddr*)&address, (int*)&addrlen);
 
@@ -215,7 +264,8 @@ int main()
 				//recv does not place a null terminator at the end of the string (whilst printf %s assumes there is one).
 				valread = recv(s, buffer, MAXRECV, 0);
 
-
+				
+				/*
 				if (valread == SOCKET_ERROR) {
 					int error_code = WSAGetLastError();
 					if (error_code == WSAECONNRESET) {
@@ -231,6 +281,7 @@ int main()
 						printf("recv failed with error code : %d", error_code);
 					}
 				}
+
 				if (valread == 0) {
 					//Somebody disconnected , get his details and print
 					printf("Host disconnected , ip %s , port %d \n", inet_ntop(AF_INET, &(address.sin_addr), tmp, INET_ADDRSTRLEN), ntohs(address.sin_port));
@@ -240,46 +291,57 @@ int main()
 					clients[i] = 0;
 					clientsTeams[i] = -1;
 					madeMove[i] = -1;
+					*/
 
-
-				} else { //udalo sie odebrac msg //Echo back the message that came in
+				if (!isClientHere(valread, tmp)) { //udalo sie odebrac msg 
+					// KTOŒ SIÊ ROZ£¥CZY£ 
+				} else {
 					bool newPlayer = false;
 					//add null character, if you want to use with printf/puts or other string handling functions
 					buffer[valread] = '\0';
-					printf("tmp buf: %s\n", buffer);
-					if (clientsTeams[i] == 0){		 // gracz nie wybral druzyny
-						int team = (int)buffer[0] - (int)48;
-						//printf("(int)buffer[0] - 48 = %d \n", team);
-						if (team == 1 || team == 2){ //
-							clientsTeams[i] = team;
-							madeMove[i] = 0;
-							printf("clientsTeams[%d] = %d \n", i, team);
-							newPlayer = true;
-						} else {
-							printf("sizeof buffer = %d, %s \n", sizeof(buffer), buffer);
-						}
+					//printf("tmp buf: %s\n", buffer);
+					if (clientsTeams[i] == 0){					// gracz nie wybral druzyny 
+						newPlayer = initNewPlayer(buffer[0], i); //jak uda sie dodac gracza to newplayer = true
 					}
 						
 					printf("%s:%d - %s \n", inet_ntop(AF_INET, &(address.sin_addr), tmp, INET_ADDRSTRLEN), ntohs(address.sin_port), buffer);
-					if (!newPlayer){
-						setVote((int)buffer[0] - (int)48, clientsTeams[i]);
-						madeMove[i] = clientsTeams[i]; //gracz teamu clientsTeams[i] wykonal ruch
-						if (areAllVotes(1) && areAllVotes(2)){
-							//WYBIERZ RUCHY DLA DRUZYN
+					
+
+					if (!newPlayer){									//bierzemy pod uwage gracza ktory juz siedzi w grze
+						if (turn == clientsTeams[i]){					//jezeli byla kolejka gracza to liczymy jego glosowanie
+							setVote((int)buffer[0] - (int)48, clientsTeams[i]); 
+							madeMove[i] = clientsTeams[i];				//gracz teamu clientsTeams[i] wykonal ruch
+						} else {										
+							//TODO
+						}			// w przeciwnym wypadku dajemy mu info, ze teraz kolej na nie jego druzyne
+
+						//if (areAllVotes(1) && areAllVotes(2)){ //jesli zostaly wykonane wszystkie ruchy
+						if (areAllVotes(turn)){
+							cout << "wszystkie ruchy !" << endl;
+							/*
+
+
+								tu trzeba zrobic obsluge co sie dzieje jak zostana wykonane wszystkie glosy
+							
+
+							*/
+						} else {
+							cout << "jeszcze ktos musi zrobic ruch!" << endl;
 						}
 					}
 					
-					printVotes();
+					//printVotes();
 					for (int j = 0; j < max_clients; j++){ //chce wyslac tez info o zmianie ruchu do pozostalych graczy w druzynie
 						if (clientsTeams[j] == clientsTeams[i]){
+
 							int team = clientsTeams[j];
 							string str = initBuffer(buffer, team);
-							str += "Gracz " + to_string(i) + " zaglosowal...";
-							cout << "str: " << str << endl;
+							if (!newPlayer)
+								str += "Gracz " + to_string(i) + " zaglosowal...";
+							else 
+								str += "Gracz " + to_string(i) + " dolaczyl do gry...";
 							const char * msg = str.c_str();
-							cout << "msg: " << msg << endl;
 							send(clients[j], msg, valread + 10, 0);
-							//send(clients[j], msg, valread + 10, 0);
 						}
 
 					}
