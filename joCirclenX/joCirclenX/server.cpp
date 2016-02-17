@@ -5,16 +5,18 @@
 #include <vector>
 #include <string>
 #include <iostream> // cout <<
+#include <ctime> //srand time
 
 #pragma comment(lib,"ws2_32.lib") //Winsock Library
 
 /*
 TODO:
-- podzial na kolejki (blokowanie tych co teraz nie graja) - 
-- wybór ruchu dla graczy na podstawie glosowania
-- zajmowanie pól, wysylanie wybranego pola do graczy (jakos trzeba to wyroznic)
-- zerowanie g³osowania i informowanie graczy o nastepnym glosowaniu
-- blokowanie wyboru pól które s¹ ju¿ zajête
+[x] podzial na kolejki (blokowanie tych co teraz nie graja) 
+[x] wysylanie graczowi info o tym czyja kolej jest - po tym bedzie wiedzial czy udalo mu sie zaglosowac
+[ ] wybór ruchu dla graczy na podstawie glosowania
+[ ] zajmowanie pól, wysylanie wybranego pola do graczy (jakos trzeba to wyroznic)
+[ ] zerowanie g³osowania i informowanie graczy o nastepnym glosowaniu
+[ ] blokowanie wyboru pól które s¹ ju¿ zajête
 */
 
 using namespace std;
@@ -28,18 +30,59 @@ vector<SOCKET> clients(max_clients, 0);
 vector<int> clientsTeams(max_clients, -1);
 vector<int> madeMove(max_clients, -1);
 struct sockaddr_in server, address; //client;
-vector<int> team1tab(10, 0);
-vector<int> team2tab(10, 0);
-int turn = 1;
+vector<int> team1tab(9, 0);
+vector<int> team2tab(9, 0);
+vector<int> gameTab(9, 0);
+int turn = 2;
 
 bool areAllVotes(int team){
 	int count = 0;
 	for (int i = 0; i < max_clients; i++){
+		//cout << i << " " << madeMove[i] << "\t";
 		if (clientsTeams[i] == team)
 			if (madeMove[i] != team)
 				return false;
 	}
 	return true;
+}
+
+int chooseMove(int team){
+	vector<int> maxTab;
+	vector<int> tab;
+	if (team == 1)
+		tab = team1tab;
+	else if (team == 2)
+		tab = team2tab;
+	else {
+		cout << "niepoprawny team!" << endl;
+		return 0;
+	}
+
+	int max = 0;
+	int move = 0;
+	for (int i = 0; i < tab.size(); i++)
+		if (tab[i] > max)
+			max = tab[i];
+	//cout << "max = " << max << endl;
+	//cout << "maxtab: ";
+	for (int i = 0; i < tab.size(); i++)
+		if (tab[i] == max){
+			maxTab.push_back(i);
+		//	cout << "dodaje ";
+		//	cout << i << "\t";
+		}
+
+	move = maxTab[rand() % maxTab.size()];
+	cout << endl << "wylosowane pole: " << move << endl;
+	
+	return move;
+}
+
+void clearVotes(int team){
+	for (int i = 0; i < max_clients; i++)
+		if (madeMove[i] == team)
+			madeMove[i] = 0;
+	
 }
 
 int getTeamCount(int team){
@@ -52,9 +95,9 @@ int getTeamCount(int team){
 
 //dajemy na poczatek wiadomosci stan gry dla gracza odpowiedniej druzyny
 string initBuffer(const char * buffer, int team){
-
+	bool flag = false;
 	string str_buffer(buffer);
-
+	//cout << "bufor zaraz po wejsciu w init: " << str_buffer << endl;
 	string new_buffer = "";
 	if (team == 1){
 		for (unsigned int i = 0; i < team1tab.size(); i++){
@@ -65,15 +108,20 @@ string initBuffer(const char * buffer, int team){
 			new_buffer += to_string(team2tab[i]);
 		}
 	} else {
-		printf("wrong team!\n");
-		return "";
+		flag = true;
+		new_buffer += "000000000"; //pusty stan gry dla nowego gracza
+		printf("wrong team/new player!\n");
 	}
-
-	new_buffer += str_buffer;
-	cout << "new_buffer: " << new_buffer << endl;
+	//cout << "old_buffer: " << new_buffer << endl;
+	new_buffer += to_string(turn); //dorzucamy czyja kolej jest
+	//new_buffer += str_buffer; //
+	//cout << "new_buffer: " << new_buffer << endl;
 	//const char * ret_buffer = new_buffer.c_str();
 	//cout << "ret_buffer: " << ret_buffer << endl;
 
+	if (flag){ //dorzucamy wiadomosc powitalna nowemu graczowi
+		new_buffer += str_buffer;
+	}
 	return new_buffer;
 }
 
@@ -184,7 +232,8 @@ void printVotes(){
 int main()
 {
 //	int c;
-	char *message = "000000000Witaj, graczu";
+	srand(time(NULL));
+	char *message = "Witaj, graczu";
 
 	initServer();
 
@@ -233,7 +282,11 @@ int main()
 			printf("New connection , socket fd is %d , ip is : %s , port : %d \n", new_socket, inet_ntop(AF_INET, &(address.sin_addr), tmp, INET_ADDRSTRLEN) , ntohs(address.sin_port));
 
 			//send new connection greeting message
-			if (send(new_socket, message, strlen(message), 0) != strlen(message)) {
+			string new_msg = initBuffer(message, 0);
+			//cout << "new_msg: " << new_msg << endl;
+			const char * tmpmsg = new_msg.c_str();
+			//cout << "welcome msg: " << tmpmsg << endl;
+			if (send(new_socket, tmpmsg, strlen(tmpmsg), 0) != strlen(tmpmsg)) {
 				perror("send failed");
 			}
 
@@ -263,36 +316,7 @@ int main()
 				//Check if it was for closing , and also read the incoming message
 				//recv does not place a null terminator at the end of the string (whilst printf %s assumes there is one).
 				valread = recv(s, buffer, MAXRECV, 0);
-
-				
-				/*
-				if (valread == SOCKET_ERROR) {
-					int error_code = WSAGetLastError();
-					if (error_code == WSAECONNRESET) {
-						//Somebody disconnected , get his details and print
-						printf("Host disconnected unexpectedly , ip %s , port %d \n", inet_ntop(AF_INET, &(address.sin_addr), tmp, INET_ADDRSTRLEN), ntohs(address.sin_port));
-
-						//Close the socket and mark as 0 in list for reuse
-						closesocket(s);
-						clients[i] = 0;
-						clientsTeams[i] = -1;
-						madeMove[i] = -1;
-					} else {
-						printf("recv failed with error code : %d", error_code);
-					}
-				}
-
-				if (valread == 0) {
-					//Somebody disconnected , get his details and print
-					printf("Host disconnected , ip %s , port %d \n", inet_ntop(AF_INET, &(address.sin_addr), tmp, INET_ADDRSTRLEN), ntohs(address.sin_port));
-
-					//Close the socket and mark as 0 in list for reuse
-					closesocket(s);
-					clients[i] = 0;
-					clientsTeams[i] = -1;
-					madeMove[i] = -1;
-					*/
-
+							
 				if (!isClientHere(valread, tmp)) { //udalo sie odebrac msg 
 					// KTOŒ SIÊ ROZ£¥CZY£ 
 				} else {
@@ -317,7 +341,13 @@ int main()
 
 						//if (areAllVotes(1) && areAllVotes(2)){ //jesli zostaly wykonane wszystkie ruchy
 						if (areAllVotes(turn)){
-							cout << "wszystkie ruchy !" << endl;
+							//cout << "wszystkie ruchy !" << endl;
+							chooseMove(turn);
+							clearVotes(turn);
+
+							turn = (turn % 2) + 1;
+							cout << "turn: " << turn << endl;
+							
 							/*
 
 
@@ -332,18 +362,20 @@ int main()
 					
 					//printVotes();
 					for (int j = 0; j < max_clients; j++){ //chce wyslac tez info o zmianie ruchu do pozostalych graczy w druzynie
-						if (clientsTeams[j] == clientsTeams[i]){
+						if (clientsTeams[j] != -1){
 
 							int team = clientsTeams[j];
 							string str = initBuffer(buffer, team);
 							if (!newPlayer)
 								str += "Gracz " + to_string(i) + " zaglosowal...";
-							else 
+							else
 								str += "Gracz " + to_string(i) + " dolaczyl do gry...";
 							const char * msg = str.c_str();
-							send(clients[j], msg, valread + 10, 0);
+							//send(clients[j], msg, valread + 10, 0);
+							send(clients[j], msg, strlen(msg), 0);
+							//}//innym graczom wysylamy info o tym czyja kolej jest
 						}
-
+						
 					}
 					newPlayer = false;
 					//send(s, buffer, valread, 0);
