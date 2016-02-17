@@ -13,7 +13,7 @@
 TODO:
 [x] podzial na kolejki (blokowanie tych co teraz nie graja) 
 [x] wysylanie graczowi info o tym czyja kolej jest - po tym bedzie wiedzial czy udalo mu sie zaglosowac
-[ ] wybór ruchu dla graczy na podstawie glosowania
+[x] wybór ruchu dla graczy na podstawie glosowania
 [ ] zajmowanie pól, wysylanie wybranego pola do graczy (jakos trzeba to wyroznic)
 [ ] zerowanie g³osowania i informowanie graczy o nastepnym glosowaniu
 [ ] blokowanie wyboru pól które s¹ ju¿ zajête
@@ -82,6 +82,15 @@ void clearVotes(int team){
 	for (int i = 0; i < max_clients; i++)
 		if (madeMove[i] == team)
 			madeMove[i] = 0;
+	if (team == 1){
+		for (int i = 0; i < team1tab.size(); i++){
+			team1tab[i] = 0;
+		}
+	} else if (team == 2){
+		for (int i = 0; i < team2tab.size(); i++){
+			team2tab[i] = 0;
+		}
+	}
 	
 }
 
@@ -119,6 +128,10 @@ string initBuffer(const char * buffer, int team){
 	//const char * ret_buffer = new_buffer.c_str();
 	//cout << "ret_buffer: " << ret_buffer << endl;
 
+	for (unsigned int i = 0; i < gameTab.size(); i++){
+		new_buffer += to_string(gameTab[i]+1);
+	}
+	
 	if (flag){ //dorzucamy wiadomosc powitalna nowemu graczowi
 		new_buffer += str_buffer;
 	}
@@ -199,6 +212,10 @@ bool isClientHere(int valread, char tmp[INET_ADDRSTRLEN]){
 	return flag;
 }
 
+void setElement(int move, int turn){
+	gameTab[move] = turn;
+}
+
 void setVote(int vote, int team){
 	if (vote >= 0 && vote < 10){
 		if (team == 1){
@@ -229,6 +246,13 @@ void printVotes(){
 	}
 }
 
+void printGameTab(){
+	for (int i = 0; i < 9; i++){
+		printf("%d ", gameTab[i]);
+		if (i+1 % 3 == 0)
+			printf("\n");
+	}
+}
 int main()
 {
 //	int c;
@@ -342,7 +366,9 @@ int main()
 						//if (areAllVotes(1) && areAllVotes(2)){ //jesli zostaly wykonane wszystkie ruchy
 						if (areAllVotes(turn)){
 							//cout << "wszystkie ruchy !" << endl;
-							chooseMove(turn);
+							printGameTab();
+							setElement(chooseMove(turn), turn);
+							printGameTab();
 							clearVotes(turn);
 
 							turn = (turn % 2) + 1;
