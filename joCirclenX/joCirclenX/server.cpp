@@ -14,9 +14,9 @@ TODO:
 [x] podzial na kolejki (blokowanie tych co teraz nie graja) 
 [x] wysylanie graczowi info o tym czyja kolej jest - po tym bedzie wiedzial czy udalo mu sie zaglosowac
 [x] wybór ruchu dla graczy na podstawie glosowania
-[ ] zajmowanie pól, wysylanie wybranego pola do graczy (jakos trzeba to wyroznic)
-[ ] zerowanie g³osowania i informowanie graczy o nastepnym glosowaniu
-[ ] blokowanie wyboru pól które s¹ ju¿ zajête
+[x] zajmowanie pól, wysylanie wybranego pola do graczy (jakos trzeba to wyroznic)
+[x] zerowanie g³osowania i informowanie graczy o nastepnym glosowaniu
+[ ] blokowanie glowowania na pola które s¹ ju¿ zajête
 */
 
 using namespace std;
@@ -129,7 +129,7 @@ string initBuffer(const char * buffer, int team){
 	//cout << "ret_buffer: " << ret_buffer << endl;
 
 	for (unsigned int i = 0; i < gameTab.size(); i++){
-		new_buffer += to_string(gameTab[i]+1);
+		new_buffer += to_string(gameTab[i]);
 	}
 	
 	if (flag){ //dorzucamy wiadomosc powitalna nowemu graczowi
