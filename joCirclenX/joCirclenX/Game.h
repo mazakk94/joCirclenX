@@ -22,6 +22,7 @@ public:
 	void initVectors(int size);
 	int isOver();
 	void newGame(int size);
+	void newGame();
 	void removePlayer(int player);
 	void setElement(int move, int turn);
 	void setVote(int vote, int team);

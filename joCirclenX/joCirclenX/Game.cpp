@@ -80,7 +80,11 @@ bool Game::initNewPlayer(char buffer0, int i){
 }
 
 void Game::initVectors(int size){
-
+	team1tab.clear();
+	team2tab.clear();
+	gameTab.clear();
+	madeMove.clear();
+	clientsTeams.clear();
 	for (int i = 0; i < size; i++){
 		team1tab.push_back(0);
 		team2tab.push_back(0);
@@ -150,6 +154,22 @@ void Game::newGame(int max_clients){
 	turn = rand() % 2 + 1;
 	this->max_clients = max_clients;
 	initVectors(9);
+	clearVotes(1, max_clients);
+	clearVotes(2, max_clients);
+	for (int i = 0; i < max_clients; i++)
+		removePlayer(i);
+}
+
+void Game::newGame(){
+	int default_max_clients = 10;
+	srand(time(NULL));
+	turn = rand() % 2 + 1;
+	max_clients = default_max_clients;
+	initVectors(9);
+	//clearVotes(1, max_clients);
+	//clearVotes(2, max_clients);
+	for (int i = 0; i < max_clients; i++)
+		removePlayer(i);
 }
 
 void Game::removePlayer(int player){
@@ -200,9 +220,9 @@ void Game::printVotes(){
 
 void Game::printGameTab(){
 	for (int i = 0; i < 9; i++){
-		//printf("%d ", gameTab[i]);
+		printf("%d ", gameTab[i]);
 		if (i + 1 % 3 == 0){
-			//printf("\n");
+			printf("\n");
 		}
 			
 	}
