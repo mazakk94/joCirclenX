@@ -22,16 +22,8 @@ TODO:
 [x] logika gry
 [x] resetowanie gry jak koniec - czekamy, az wszyscy gracze klikna okejke (jak ktos sie rozlaczy to tez trzeba wiedziec zeby na niego nie czekac)
 [x] jak ktos wyjdzie w trakcie gry to musi to wykryc i zaktualizowac zeby nie bylo zakleszczenia
-//SYPIE SIE NA KONIEC GRY RESETOWANIE WSZYSTKICH USTAWIEN - PRZEKMINA CZEMU, MOZE LEPIEJ OD NOWA?
-
-[ ] jak sie nie uda polaczyc to obsluga musi byc
-[ ] brak druzyny przeciwnej
-[ ] algorytm nagle'a
-
-extra:
-[ ] pousuwac niepotrzebnie przekazywane parametry, ktore sa juz w klasie Game
-[ ] co jak serwer padnie? //wczytanie stanu gry z pliku do ktorego bedzie zapis??
-[ ] czemu tak dlugo laczy sie z serwerem?
+[x] jak sie nie uda polaczyc to obsluga musi byc
+[x] brak druzyny przeciwnej
 */
 
 using namespace std;
@@ -45,14 +37,15 @@ vector<SOCKET> clients(max_clients, 0);
 struct sockaddr_in server, address;
 
 //dajemy na poczatek wiadomosci stan gry dla gracza odpowiedniej druzyny
-string initBuffer(const char * buffer, int team, Game game, bool newGame){
+string initBuffer(const char * buffer, int team, Game game, int newGame){
 	bool flag = false;
 	string str_buffer(buffer);
 	//cout << "bufor zaraz po wejsciu w init: " << str_buffer << endl;
 	string new_buffer = "";
-
+	string newGameStr = to_string(newGame);
+	cout << "newGameStr: " << newGameStr << endl;
 	if (newGame){ //jak klient otrzyma na poczatku wiadomosci "new" to wie, ze jest nowa gra i musi zresetowac ustawienia
-		new_buffer += "new";
+		new_buffer += "ne" + newGameStr;
 	}
 	//ladujemy do bufora stan glosowania
 
@@ -77,11 +70,11 @@ string initBuffer(const char * buffer, int team, Game game, bool newGame){
 	//cout << "new_buffer: " << new_buffer << endl;
 	//const char * ret_buffer = new_buffer.c_str();
 	//cout << "ret_buffer: " << ret_buffer << endl;
-	if (!newGame){
+	if (!newGame){ //newgame == 0
 		for (unsigned int i = 0; i < game.gameTab.size(); i++){
 			new_buffer += to_string(game.gameTab[i]);
 		}
-	} else { // newGame == true
+	} else { // newGame != 0
 		new_buffer += "000000000";
 	}
 	
@@ -162,7 +155,7 @@ int main() {
 	initServer();
 	Game game;
 	game.newGame(10, clients); //max_clients -> 10
-	bool isNewGame = false;
+	int isNewGame = 0;
 
 	int MAXRECV = 1024;
 	fd_set readfds; //deskryptory
@@ -211,7 +204,7 @@ int main() {
 			
 
 			//send new connection greeting message
-			string new_msg = initBuffer(message, 0, game, false);
+			string new_msg = initBuffer(message, 0, game, 0);
 			const char * tmpmsg = new_msg.c_str();
 			if (send(new_socket, tmpmsg, strlen(tmpmsg), 0) != strlen(tmpmsg)) {
 				perror("send failed");
@@ -234,7 +227,7 @@ int main() {
 		//obsluga wszystkich graczy
 		if (isNewGame){
 			game.newGame(clients);
-			isNewGame = false;
+			isNewGame = 0;
 		}
 
 		for (int i = 0; i < max_clients; i++) {
@@ -295,16 +288,16 @@ int main() {
 								game.setElement(game.chooseMove(game.turn), game.turn);
 								int isOver = game.isOver();
 								cout << "isOver\t" << isOver << endl;
-								if (isOver != -1) {	//jezeli koniec gry
+								if (isOver != 0) {	//jezeli koniec gry
 									if (isOver == 1){
 										printf("wygral gracz 1\n");
 									}
 									else if (isOver == 2){
 										printf("wygral gracz 2\n");
 									}
-									else // 0
+									else if (isOver == 3)
 										printf("remis!\n");
-									isNewGame = true;
+									isNewGame = isOver;
 									
 									//i = -1; //wracamy na poczatek petli zeby wyslac wszystkim graczom info o nowej grze
 								}
@@ -335,7 +328,7 @@ int main() {
 							if (game.clientsTeams[j] != -1){
 
 								int team = game.clientsTeams[j];
-								string str = initBuffer(buffer, team, game, false);
+								string str = initBuffer(buffer, team, game, 0);
 								if (!newPlayer)
 									str += "Gracz " + to_string(i) + " zaglosowal...";
 								else
@@ -346,11 +339,11 @@ int main() {
 								//}//innym graczom wysylamy info o tym czyja kolej jest
 							}
 							if (isNewGame){ //jak mamy nowa gre to wysylamy graczom info zeby zresetowaly im sie ustawienia
-								string str = initBuffer(buffer, game.turn, game, true);
+								string str = initBuffer(buffer, game.turn, game, isNewGame);
 								cout << "wysylam info o wygranej do gracza " << j << "\t" << str <<  endl;
 								const char * msg = str.c_str();
 								send(clients[j], msg, strlen(msg), 0);
-								isNewGame = true;
+								//isNewGame = true;
 							}
 						}
 						

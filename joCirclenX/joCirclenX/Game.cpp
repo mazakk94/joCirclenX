@@ -116,10 +116,10 @@ int Game::isOver(){
 	- skosy takie same
 	- cala zapelniona tablica
 
-	-1 - gra sie toczy dalej
-	 0 - remis
+	 0 - gra sie toczy dalej
 	 1 - gracz 1 wygrywa
   	 2 - gracz 2 wygrywa
+	 3 - remis
 	
 	*/
 
@@ -153,9 +153,9 @@ int Game::isOver(){
 			fullTab = false;
 	
 	if (fullTab == true)
-		return 0;	
+		return 3;	
 
-	return -1;
+	return 0;
 }
 
 void Game::newGame(int max_clients, std::vector<SOCKET> clients){
