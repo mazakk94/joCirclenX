@@ -1,5 +1,14 @@
 #include "Game.h"
 
+void Game::addExistingPlayers(std::vector<SOCKET> clients){
+	for (int i = 0; i < clients.size(); i++){
+		if (clients[i] != 0){
+			clientsTeams[i] = 0;
+			madeMove[i] = 0;
+		}
+	}
+}
+
 bool Game::areAllVotes(int team){
 	int count = 0;
 	for (int i = 0; i < max_clients; i++){
@@ -149,27 +158,21 @@ int Game::isOver(){
 	return -1;
 }
 
-void Game::newGame(int max_clients){
+void Game::newGame(int max_clients, std::vector<SOCKET> clients){
 	srand(time(NULL));
 	turn = rand() % 2 + 1;
 	this->max_clients = max_clients;
 	initVectors(9);
-	clearVotes(1, max_clients);
-	clearVotes(2, max_clients);
-	for (int i = 0; i < max_clients; i++)
-		removePlayer(i);
+	addExistingPlayers(clients);
 }
 
-void Game::newGame(){
+void Game::newGame(std::vector<SOCKET> clients){
 	int default_max_clients = 10;
 	srand(time(NULL));
 	turn = rand() % 2 + 1;
 	max_clients = default_max_clients;
 	initVectors(9);
-	//clearVotes(1, max_clients);
-	//clearVotes(2, max_clients);
-	for (int i = 0; i < max_clients; i++)
-		removePlayer(i);
+	addExistingPlayers(clients);
 }
 
 void Game::removePlayer(int player){
